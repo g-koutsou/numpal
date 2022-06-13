@@ -43,7 +43,7 @@ quantities = {
     # projs     : list of nucleon projectors to include. P0, Px, Py, or Pz
     #
     
-    "sigma": {
+    "scalar": {
         "kind": "local",
         "oneend": "std",
         "gammas": [
@@ -73,14 +73,23 @@ quantities = {
 }
 
 loops_names = {
-    "C": {("exact", "gen"): "exact_part_gen.h5",
-          ("exact", "std"): "exact_part_std.h5",
-          ("stoch", "gen"): "stoch_part_gen.h5",
-          ("stoch", "std"): "stoch_part_std.h5"},
-    "B": {("exact", "gen"): "loop_probD8.%TRAJ%_exact_NeV200_Qsq64.h5",
-          ("exact", "std"): "loop_probD8.%TRAJ%_exact_NeV200_Qsq64.h5",
-          ("stoch", "gen"): "loop_probD8.%TRAJ%_stoch_NeV200_Ns0001_step0001_Qsq64.h5",
-          ("stoch", "std"): "loop_probD8.%TRAJ%_stoch_NeV200_Ns0001_step0001_Qsq64.h5"},
+    "C": {("exact", "gen", "l"): "exact_part_gen.h5",
+          ("exact", "std", "l"): "exact_part_std.h5",
+          ("stoch", "gen", "l"): "stoch_part_gen.h5",
+          ("stoch", "std", "l"): "stoch_part_std.h5",
+          ("stoch", "gen", "s"): "stoch_part_gen.h5",
+          ("stoch", "std", "s"): "stoch_part_std.h5"},
+    "B": {("exact", "gen", "l"): "loop_probD8.%TRAJ%_exact_NeV200_Qsq64.h5",
+          ("exact", "std", "l"): "loop_probD8.%TRAJ%_exact_NeV200_Qsq64.h5",
+          ("stoch", "gen", "l"): "loop_probD8.%TRAJ%_stoch_NeV200_Ns0001_step0001_Qsq64.h5",
+          ("stoch", "std", "l"): "loop_probD8.%TRAJ%_stoch_NeV200_Ns0001_step0001_Qsq64.h5",
+          ("stoch", "gen", "s"): "loop_probD4.%TRAJ%_stoch_NeV0_Ns0012_step0001_Qsq64.h5",
+          ("stoch", "std", "s"): "loop_probD4.%TRAJ%_stoch_NeV0_Ns0012_step0001_Qsq64.h5"},
+}
+
+NSs = {
+    "B": {"l": 1, "s": 12},
+    "C": {"l": 0, "s": 0}
 }
 
 T_extents = {"C": 160, "B": 128}
@@ -95,7 +104,7 @@ def get_spos(fname_twop, traj):
     spos = np.array(list(map(lambda x: re.match(match, x).groups(), spos)), int)
     return spos
 
-def get_loop(fname, traj, msq_ins=0, Ns=None, kind="local", conv="C", oneend="std"):
+def get_loop(fname, traj, msq_ins=0, Ns=None, kind="local", conv="C", oneend="std", flav="l"):
     """
     Retrieves the loop with open dirac indices
     """
@@ -110,7 +119,7 @@ def get_loop(fname, traj, msq_ins=0, Ns=None, kind="local", conv="C", oneend="st
             if kind == "local":
                 l = np.array(fp[f"Conf{traj}/{Ns}/localLoops/loop"])
     if conv == "B":
-        Ns = "" if Ns is None else "Nstoch_{:04.0f}".format(Ns+1)
+        Ns = "" if Ns is None else "Nstoch_{:04.0f}".format(Ns)
         ncnf = traj.split("_")[0]
         with h5py.File(fname, "r") as fp:
             mvec = np.array(fp[f"Momenta_list_xyz"])
@@ -124,7 +133,7 @@ def get_loop(fname, traj, msq_ins=0, Ns=None, kind="local", conv="C", oneend="st
         l = l.reshape(T, mvec.shape[0], 4, 4, 2).transpose(0, 2, 3, 1, 4)
     return mvec[mvec_idx, :], l[...,mvec_idx,0] + I*l[...,mvec_idx,1]
 
-def loop_contract(dname, traj, msq_ins=0, quantity="sigma", parts=["stoch"], conv="C"):
+def loop_contract(dname, traj, msq_ins=0, quantity="scalar", parts=["stoch"], conv="C", flav="l", Ns=0):
     """
     Contract and return the loop according to `quantity'
     - Return shape is [part, ngamma, nt, nmvec]
@@ -137,10 +146,10 @@ def loop_contract(dname, traj, msq_ins=0, quantity="sigma", parts=["stoch"], con
     gammas = quantities[quantity]["gammas"]
     ret = list()
     for i,part in enumerate(parts):
-        fn = loops_names[conv][part, oneend].replace("%TRAJ%", f"{traj}")
-        Ns = {"stoch": 0, "exact": None}[part]
+        fn = loops_names[conv][part, oneend, flav].replace("%TRAJ%", f"{traj}")
+        Ns = {"stoch": Ns, "exact": None}[part]
         fname = f"{dname}/{traj}/{fn}"
-        mvec,l = get_loop(fname, traj, msq_ins=msq_ins, Ns=Ns, kind=kind, conv=conv, oneend=oneend)
+        mvec,l = get_loop(fname, traj, msq_ins=msq_ins, Ns=Ns, kind=kind, conv=conv, oneend=oneend, flav=flav)
         ### Transpose dirac indices and move insertion momentum vector
         ### index to second-from-left
         l = l.transpose(0, 3, 2, 1)
@@ -185,10 +194,11 @@ def get_twop(fname, traj, spo, msq_snk=0, projs=["P0"], conv="C"):
 @click.option("-i", "--msq-ins", default=0, help="insertion momentum squared")
 @click.option("-s", "--msq-snk", default=0, help="sink momentum squared")
 @click.option("-d", "--tsinks", default="4,30", help="tsinks, give as `min(tsink),max(tsink)'")
-@click.option("-t", "--quantities", "quants", default="sigma", help="quantity to compute")
+@click.option("-t", "--quantities", "quants", default="scalar", help="quantity to compute")
 @click.option("-p", "--parts", default="stoch", help="parts, e.g. `exact,stoch'")
+@click.option("-f", "--flavor", default="l", help="flavor, e.g. `l' or `s'")
 @click.option("-q", "--quiet/--no-quiet", default=False, help="suppress progress bar")
-def main(two_point_filename, loops_dirname, traj, oname, conv, msq_ins, msq_snk, tsinks, quants, parts, quiet):
+def main(two_point_filename, loops_dirname, traj, oname, conv, msq_ins, msq_snk, tsinks, quants, parts, flavor, quiet):
     T = T_extents[conv]
     fname_twop = two_point_filename
     dname_loop = loops_dirname
@@ -198,7 +208,8 @@ def main(two_point_filename, loops_dirname, traj, oname, conv, msq_ins, msq_snk,
     spos = get_spos(fname_twop, traj)
     thrp = defaultdict(list)
     quants = quants.split(",")
-    loops = {quant: loop_contract(dname_loop, traj, msq_ins=msq_ins, quantity=quant, parts=parts, conv=conv)
+    Ns = NSs[conv][flavor]
+    loops = {quant: loop_contract(dname_loop, traj, msq_ins=msq_ins, quantity=quant, parts=parts, conv=conv, flav=flavor, Ns=Ns)
              for quant in quants}
     spos_iter = spos if quiet else tqdm.tqdm(spos, ncols=72)
     for spo in spos_iter:
@@ -223,7 +234,7 @@ def main(two_point_filename, loops_dirname, traj, oname, conv, msq_ins, msq_snk,
                     # ### Shape: [2 (exact/stoch), ngammas, dt, nmvec_ins, nprojs, nmvec_snk]
                     # # if quant == "axial":
                     # #     arr = lf#0.5*(lf+lb)
-                    # # elif quant == "sigma":
+                    # # elif quant == "scalar":
                     # arr = 0.5*(lf-lb) ### Backwards nucleon has a sign flipped 
                     # ### Transpose to: [2 (exact/stoch), nprojs, nmvec_snk, nmvec_ins, ngammas, dt]
                     # arr = arr.transpose(0, 4, 5, 3, 1, 2)
