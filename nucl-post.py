@@ -52,8 +52,9 @@ Pkm = [I*P0m.dot(g5.dot(gk)) for gk in [gx, gy, gz]]
 @click.option("-s", "--momsq", default=None, help="momenta squared to be extracted")
 @click.option("-p", "--projs", default="0,x,y,z", help="projectors (any combination of \"0,x,y,z\")")
 @click.option("-a", "--average/--no-average", default=False, help="average over source positions")
+@click.option("-r", "--root", default="/", help="choose root group of output file. Default is `/'")
 @click.option("-q", "--quiet/--no-quiet", default=False, help="suppress progress bar")
-def main(fname, conv, oname, momname, momsq, projs, average, quiet):
+def main(fname, conv, oname, momname, momsq, projs, average, root, quiet):
     if momsq is not None:
         momsq = list(map(int, momsq.split(",")))
     prjs = projs.split(",")
@@ -63,7 +64,7 @@ def main(fname, conv, oname, momname, momsq, projs, average, quiet):
             momsq = sorted(set((momvecs**2).sum(axis=1)))
     with h5py.File(oname, "w") as fo:
         with h5py.File(fname, "r") as fp:
-            assert conv in ["C", "B"]
+            assert conv in ["C", "B", "D"]
             nucls = {
                 "C": [
                     ("nucl1", "nucl1"),
@@ -73,26 +74,39 @@ def main(fname, conv, oname, momname, momsq, projs, average, quiet):
                     ("nucl1", "nucl_nucl/twop_baryon_1"),
                     ("nucl2", "nucl_nucl/twop_baryon_2")
                 ],
+                "D": [
+                    ("nucl1", "baryons/nucl_nucl/twop_baryon_1"),
+                    ("nucl2", "baryons/nucl_nucl/twop_baryon_2")
+                ],
             }[conv]
-            cnf = None
-            if len(fp) == 1:
-                cnf = list(fp.keys())[0]
-            else:
-                for key in fp.keys():
-                    if 'conf' in key:
-                        cnf = key
-                    if re.match("[0-9]{4}_r[01]", key) is not None:
-                        cnf = key
-            assert cnf is not None
+            if conv in ["C", "B"]:
+                cnf = None
+                if len(fp) == 1:
+                    cnf = list(fp.keys())[0]
+                else:
+                    for key in fp.keys():
+                        if 'conf' in key:
+                            cnf = key
+                        if re.match("[0-9]{4}_r[01]", key) is not None:
+                            cnf = key
+                assert cnf is not None
+                srcs = fp[cnf]
+            if conv == "D":
+                cnf = "/"
+                srcs = fp[nucls[0][1]]
             dsets = defaultdict(int)
-            src_iter = fp[cnf] if quiet else tqdm.tqdm(fp[cnf], ncols=72)
+            src_iter =  srcs if quiet else tqdm.tqdm(srcs, ncols=72)
             nsrc = len(src_iter)
             for src in src_iter:
                 for nn,nucl in nucls:
-                    itype = fp[cnf][src][nucl].dtype
+                    if conv in ["B", "C"]:
+                        grp = fp[cnf][src][nucl]
+                    if conv == "D":
+                        grp = fp[cnf][nucl][src]
+                    itype = grp.dtype
                     assert itype in [np.float32, np.float64]
                     otype = np.complex64 if itype == np.float32 else np.complex128
-                    arr = fp[cnf][src][nucl][()]
+                    arr = grp[()]
                     for msq in momsq:
                         nmom = momvecs.shape[0]
                         idx = np.arange(nmom, dtype=int)[msq == (momvecs**2).sum(axis=1)]
@@ -108,7 +122,7 @@ def main(fname, conv, oname, momname, momsq, projs, average, quiet):
                                 dset = subarr.dot(P[p])[s,:,:,:].trace(axis1=2, axis2=3)
                                 dsets[nn,msq,di,p] += np.array(dset, dtype=otype)
                         if not average:
-                            grp = fo.require_group(cnf+"/"+src+"/"+nn+"/msq{:03.0f}".format(msq))
+                            grp = fo.require_group("/"+root+"/"+cnf+"/"+src+"/"+nn+"/msq{:03.0f}".format(msq))
                             grp.create_dataset("mvec", data=momvecs[idx, :])
                             for _,_,di,p in dsets.keys():
                                 dgrp = grp.require_group("P"+p)
