@@ -12,7 +12,8 @@ import re
 @click.option("-q", "--quiet/--no-quiet", default=False, help="suppress progress bar")
 @click.option("-q", "--quiet/--no-quiet", default=False, help="suppress progress bar")
 @click.option("-a", "--append/--no-append", default=None, help="If `--append' open in r/w mode. If `--no-append' file will be truncated if it exists. If neither specified, will fail if file exists.")
-def main(fname1, fname2, oname, replace, quiet, append):
+@click.option("-t", "--traverse/--no-traverse", default=True, help="If `--no-traverse', copy only top-level groups. Use if each file has a different top-level group. Faster than `--traverse' which traverses the whole tree to find all datasets")
+def main(fname1, fname2, oname, replace, quiet, append, traverse):
     mode = "w"
     if append is None:
         if os.path.isfile(oname):
@@ -28,8 +29,11 @@ def main(fname1, fname2, oname, replace, quiet, append):
             repl = replace.split("@")[2]
         for fn in iter_fns:
             with h5py.File(fn, "r") as fp:
-                names = list()
-                fp.visititems(lambda x,y: names.append(x) if isinstance(y, h5py.Dataset) else None)
+                if traverse:
+                    names = list()
+                    fp.visititems(lambda x,y: names.append(x) if isinstance(y, h5py.Dataset) else None)
+                else:
+                    names = list(fp.keys())
                 for d in names:
                     if d in op:
                         del op[d]
@@ -38,6 +42,7 @@ def main(fname1, fname2, oname, replace, quiet, append):
                     else:
                         dest = d
                     fp.copy(d, op, name=dest)
+                    
     return 0
 
 if __name__ == "__main__":
