@@ -73,6 +73,10 @@ quantities = {
 }
 
 loops_names = {
+    "D": {("stoch", "gen", "l"): "stoch_part_gen.h5",
+          ("stoch", "std", "l"): "stoch_part_std.h5",
+          ("stoch", "gen", "s"): "stoch_part_gen.h5",
+          ("stoch", "std", "s"): "stoch_part_std.h5"},
     "C": {("exact", "gen", "l"): "exact_part_gen.h5",
           ("exact", "std", "l"): "exact_part_std.h5",
           ("stoch", "gen", "l"): "stoch_part_gen.h5",
@@ -89,7 +93,8 @@ loops_names = {
 
 NSs = {
     "B": {"l": 1, "s": 12},
-    "C": {"l": 0, "s": 0}
+    "C": {"l": 0, "s": 0},
+    "D": {"l": 0, "s": 0}    
 }
 
 T_extents = {"C": 160, "B": 128}
