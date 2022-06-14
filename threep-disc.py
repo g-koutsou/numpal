@@ -168,7 +168,7 @@ def get_twop(fname, traj, spo, msq_snk=0, projs=["P0"], conv="C"):
     with h5py.File(fname, "r") as fp:
         if conv == "C":
             s = f"sx{spo[0]:02.0f}sy{spo[1]:02.0f}sz{spo[2]:02.0f}st{spo[3]:03.0f}"
-        if conv == "B":
+        if conv in ["B","D"]:
             s = f"sx{spo[0]:02.0f}sy{spo[1]:02.0f}sz{spo[2]:02.0f}st{spo[3]:02.0f}"            
         top = fp[f"{traj}/{s}"]
         for i,nucl in enumerate(["nucl1","nucl2"]):
