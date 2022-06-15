@@ -24,7 +24,7 @@ gy = np.array([[ 0, 0, 0,+1],
 gz = np.array([[ 0, 0, I, 0],
                [ 0, 0, 0,-I],
                [-I, 0, 0, 0],
-               [0,+I, 0, 0]])
+               [ 0,+I, 0, 0]])
 
 gt = np.array([[ 1, 0, 0, 0],
                [ 0, 1, 0, 0],
@@ -32,6 +32,17 @@ gt = np.array([[ 1, 0, 0, 0],
                [ 0, 0, 0,-1]])
 
 g5 = gx.dot(gy.dot(gz.dot(gt)))
+
+si = {
+    ("t", "x"): -I/2*(np.dot(gt, gx) - np.dot(gx, gt)),
+    ("t", "y"): -I/2*(np.dot(gt, gy) - np.dot(gy, gt)),
+    ("t", "z"): -I/2*(np.dot(gt, gz) - np.dot(gz, gt)),
+    ("x", "y"): -I/2*(np.dot(gx, gy) - np.dot(gy, gx)),
+    ("x", "z"): -I/2*(np.dot(gx, gz) - np.dot(gz, gx)),
+    ("y", "z"): -I/2*(np.dot(gy, gz) - np.dot(gz, gy)),
+}
+      
+      
 
 one = np.eye(NS, dtype=complex)
 
@@ -68,7 +79,26 @@ quantities = {
             "Py",
             "Pz",
         ]
+    },
+    "tensor": {
+        "kind": "local",
+        "oneend": "std",
+        "gammas": [
+            ("I*g5*sitx", I*g5.dot(si["t", "x"])),
+            ("I*g5*sity", I*g5.dot(si["t", "y"])),
+            ("I*g5*sitz", I*g5.dot(si["t", "z"])),
+            ("I*g5*sixy", I*g5.dot(si["x", "y"])),
+            ("I*g5*sixz", I*g5.dot(si["x", "z"])),
+            ("I*g5*siyz", I*g5.dot(si["y", "z"])),
+        ],
+        "projs": [
+            "P0",
+            "Px",
+            "Py",
+            "Pz",
+        ]
     }
+    
     
 }
 
@@ -152,9 +182,9 @@ def loop_contract(dname, traj, msq_ins=0, quantity="scalar", parts=["stoch"], co
     ret = list()
     for i,part in enumerate(parts):
         fn = loops_names[conv][part, oneend, flav].replace("%TRAJ%", f"{traj}")
-        Ns = {"stoch": Ns, "exact": None}[part]
+        N = {"stoch": Ns, "exact": None}[part]
         fname = f"{dname}/{traj}/{fn}"
-        mvec,l = get_loop(fname, traj, msq_ins=msq_ins, Ns=Ns, kind=kind, conv=conv, oneend=oneend, flav=flav)
+        mvec,l = get_loop(fname, traj, msq_ins=msq_ins, Ns=N, kind=kind, conv=conv, oneend=oneend, flav=flav)
         ### Transpose dirac indices and move insertion momentum vector
         ### index to second-from-left
         l = l.transpose(0, 3, 2, 1)
