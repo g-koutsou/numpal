@@ -130,7 +130,7 @@ def main(fname, conv, oname, momname, momsq, projs, average, root, quiet):
                             dsets = defaultdict(int)
             if average:
                 for nucl,msq,di,p in dsets:
-                    grp = fo.require_group(cnf+"/"+nucl+"/msq{:03.0f}".format(msq))
+                    grp = fo.require_group("/"+root+"/"+cnf+"/"+nucl+"/msq{:03.0f}".format(msq))
                     idx = np.arange(nmom, dtype=int)[msq == (momvecs**2).sum(axis=1)]
                     if "mvec" not in grp:
                         grp.create_dataset("mvec", data=momvecs[idx, :])

@@ -127,7 +127,7 @@ NSs = {
     "D": {"l": 0, "s": 0}    
 }
 
-T_extents = {"C": 160, "B": 128}
+T_extents = {"D": 192, "C": 160, "B": 128}
 
 def get_spos(fname_twop, traj):
     """
@@ -146,7 +146,7 @@ def get_loop(fname, traj, msq_ins=0, Ns=None, kind="local", conv="C", oneend="st
     T = T_extents[conv]
     kinds = ["local",] ### Add more here as we implement them
     assert kind in kinds, " `kind' should be one of: [{}]".format(", ".join(kinds))
-    if conv == "C":
+    if conv in ["C","D"]:
         Ns = "" if Ns is None else f"Ns{Ns}"
         with h5py.File(fname, "r") as fp:
             mvec = np.array(fp[f"Conf{traj}/{Ns}/localLoops/mvec"])
