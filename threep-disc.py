@@ -106,25 +106,31 @@ loops_names = {
     "D": {("stoch", "gen", "l"): "stoch_part_gen.h5",
           ("stoch", "std", "l"): "stoch_part_std.h5",
           ("stoch", "gen", "s"): "stoch_part_gen.h5",
-          ("stoch", "std", "s"): "stoch_part_std.h5"},
+          ("stoch", "std", "s"): "stoch_part_std.h5",
+          ("stoch", "gen", "c"): "stoch_part_gen.h5",
+          ("stoch", "std", "c"): "stoch_part_std.h5",},
     "C": {("exact", "gen", "l"): "exact_part_gen.h5",
           ("exact", "std", "l"): "exact_part_std.h5",
           ("stoch", "gen", "l"): "stoch_part_gen.h5",
           ("stoch", "std", "l"): "stoch_part_std.h5",
           ("stoch", "gen", "s"): "stoch_part_gen.h5",
-          ("stoch", "std", "s"): "stoch_part_std.h5"},
+          ("stoch", "std", "s"): "stoch_part_std.h5",
+          ("stoch", "gen", "c"): "stoch_part_gen.h5",
+          ("stoch", "std", "c"): "stoch_part_std.h5",},
     "B": {("exact", "gen", "l"): "loop_probD8.%TRAJ%_exact_NeV200_Qsq64.h5",
           ("exact", "std", "l"): "loop_probD8.%TRAJ%_exact_NeV200_Qsq64.h5",
           ("stoch", "gen", "l"): "loop_probD8.%TRAJ%_stoch_NeV200_Ns0001_step0001_Qsq64.h5",
           ("stoch", "std", "l"): "loop_probD8.%TRAJ%_stoch_NeV200_Ns0001_step0001_Qsq64.h5",
           ("stoch", "gen", "s"): "loop_probD4.%TRAJ%_stoch_NeV0_Ns0012_step0001_Qsq64.h5",
-          ("stoch", "std", "s"): "loop_probD4.%TRAJ%_stoch_NeV0_Ns0012_step0001_Qsq64.h5"},
+          ("stoch", "std", "s"): "loop_probD4.%TRAJ%_stoch_NeV0_Ns0012_step0001_Qsq64.h5",
+          ("stoch", "gen", "c"): "loop_probD4.%TRAJ%_stoch_NeV0_Ns0012_step0001_Qsq64.h5",
+          ("stoch", "std", "c"): "loop_probD4.%TRAJ%_stoch_NeV0_Ns0012_step0001_Qsq64.h5",},
 }
 
 NSs = {
-    "B": {"l": 1, "s": 12},
-    "C": {"l": 0, "s": 0},
-    "D": {"l": 0, "s": 0}    
+    "B": {"l": 1, "s": 12,"c": 12},
+    "C": {"l": 0, "s": 0, "c": 0},
+    "D": {"l": 0, "s": 0, "c": 0}    
 }
 
 T_extents = {"D": 192, "C": 160, "B": 128}
