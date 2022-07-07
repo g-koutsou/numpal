@@ -281,7 +281,7 @@ def main(two_point_filename, loops_dirname, traj, oname, conv, msq_ins, msq_snk,
                     # arr = arr.transpose(0, 4, 5, 3, 1, 2)
                     # thrp[quant, dt].append(arr)
                     #...
-                    arr = 0.5*(lf-lb) ### Backwards nucleon has a sign flipped 
+                    # arr = 0.5*(lf-lb) ### Backwards nucleon has a sign flipped 
                     ### Transpose to: [2 (exact/stoch), nprojs, nmvec_snk, nmvec_ins, ngammas, dt]
                     arr = np.array([lf, lb]).transpose(0, 1, 5, 6, 4, 2, 3)
                     thrp[quant, dt, prod, "fwd"].append(arr[0,...])
