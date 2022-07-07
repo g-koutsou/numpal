@@ -109,7 +109,8 @@ NSs = {
     "D": {"l": 0, "s": 0, "c": 0}    
 }
 
-T_extents = {"D": 192, "C": 160, "B": 128}
+T_extents = {"D": 192, "C": 160, "B": 128} ### Could be inferred from shape of loops
+L_extents = {"D":  96, "C":  80, "B":  64} ### Needed for correcting phase due to source-position
 
 def get_spos(fname_twop, traj):
     """
@@ -218,7 +219,7 @@ def get_E1(mvec, thrp):
     y = list()
     for imv,k in zip(*np.where(mvec != 0)):
         qsq = np.sum(mvec[imv,:]**2)
-        y.append((qsq, thrp[:, 0, :, imv, k, :]/mvec[imv, k]))
+        y.append((qsq, thrp[:, 0, :, imv, k+1, :]/mvec[imv, k]))
     qsqs = sorted(set([x for x,_ in y]))
     e1 = list()
     for qsq in qsqs:
@@ -233,7 +234,7 @@ def get_EM(mvec, thrp):
     for imv,j in zip(*np.where(mvec != 0)):
         for i,k in zip(*np.where(eps[:, j, :] != 0)):
             qsq = np.sum(mvec[imv,:]**2)
-            y.append((qsq, thrp[:, k, :, imv, i, :]/(eps[i,j,k]*mvec[imv, j])))
+            y.append((qsq, thrp[:, k+1, :, imv, i+1, :]/(eps[i,j,k]*mvec[imv, j])))
     qsqs = sorted(set([x for x,_ in y]))
     e2 = list()
     for qsq in qsqs:
@@ -254,6 +255,7 @@ def get_EM(mvec, thrp):
 @click.option("-q", "--quiet/--no-quiet", default=False, help="suppress progress bar")
 def main(two_point_filename, loops_dirname, traj, oname, conv, max_msq_ins, msq_snk, tsinks, parts, flavor, quiet):
     T = T_extents[conv]
+    L = L_extents[conv]
     fname_twop = two_point_filename
     dname_loop = loops_dirname
     parts = parts.split(",")
@@ -265,13 +267,15 @@ def main(two_point_filename, loops_dirname, traj, oname, conv, max_msq_ins, msq_
     thrp = defaultdict(np.complex128)
     Ns = NSs[conv][flavor]
     mvec_ins,loops = loop_contract(dname_loop, traj, max_msq_ins=max_msq_ins, parts=parts, conv=conv, flav=flavor, Ns=Ns)
+    qx,qy,qz = mvec_ins.T
     spos_iter = spos if quiet else tqdm.tqdm(spos, ncols=72)
     for spo in spos_iter:
+        sx,sy,sz,st = spo
         projs = operators["vector"]["projs"]
         mv_snk,twop = get_twop(fname_twop, traj, spo, msq_snk=msq_snk, projs=projs, conv=conv)
-        t0 = spo[-1]
-        tf = (T + np.arange(T) + t0) % T
-        tb = (T - np.arange(T) + t0) % T
+        tf = (T + np.arange(T) + st) % T
+        tb = (T - np.arange(T) + st) % T
+        phase = np.exp(I*(qx*sx + qy*sy + qz*sz)*2.0*np.pi/L)
         for dt in dts:
             #
             # rprod: product of real part of loop with two-point
@@ -280,14 +284,13 @@ def main(two_point_filename, loops_dirname, traj, oname, conv, max_msq_ins, msq_
             #
             for prod in ["rprod", "iprod"]:
                 p = lambda x: {"rprod": x.real, "iprod": x.imag}[prod]
-                lf = np.multiply.outer(p(loops[:,:,tf[:dt+1],...]), twop[:, 0, dt, :])
-                lb = np.multiply.outer(p(loops[:,:,tb[:dt+1],...]), twop[:, 1, dt, :])
-                arr = 0.5*(lf-lb) ### Backwards nucleon has a sign flipped 
-                ### Transpose to: [2 (exact/stoch), nprojs, nmvec_snk, nmvec_ins, ngammas, dt]
-                arr = np.array([lf, lb]).transpose(0, 1, 5, 6, 4, 2, 3)
+                lf = np.multiply.outer(twop[:, 0, dt, :], phase*p(loops[:,:,tf[:dt+1],...]))
+                lb = np.multiply.outer(twop[:, 1, dt, :], phase*p(loops[:,:,tb[:dt+1],...]))
+                ### lf.shape and lb.shape is    : [nprojs, nmvec_snk, 2 (exact/stoch), ngammas, dt, nmvec_ins] 
+                ### Transpose to                : [2 (exact/stoch), nprojs, nmvec_snk, nmvec_ins, ngammas, dt]
+                arr = np.array([lf, lb]).transpose(0, 3, 1, 2, 6, 4, 5)
                 thrp[dt, prod, "fwd"] += arr[0,...]
                 thrp[dt, prod, "bwd"] += arr[1,...]
-                
     ### Normalize over number of source positions
     thrp = {k: np.array(v)/len(spos) for k,v in thrp.items()}
 
