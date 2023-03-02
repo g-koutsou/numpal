@@ -78,31 +78,6 @@ operators = {
     }
 }
 
-loops_names = {
-    "D": {("stoch", "gen", "l"): "stoch_part_gen.h5",
-          ("stoch", "std", "l"): "stoch_part_std.h5",
-          ("stoch", "gen", "s"): "stoch_part_gen.h5",
-          ("stoch", "std", "s"): "stoch_part_std.h5",
-          ("stoch", "gen", "c"): "stoch_part_gen.h5",
-          ("stoch", "std", "c"): "stoch_part_std.h5",},
-    "C": {("exact", "gen", "l"): "exact_part_gen.h5",
-          ("exact", "std", "l"): "exact_part_std.h5",
-          ("stoch", "gen", "l"): "stoch_part_gen.h5",
-          ("stoch", "std", "l"): "stoch_part_std.h5",
-          ("stoch", "gen", "s"): "stoch_part_gen.h5",
-          ("stoch", "std", "s"): "stoch_part_std.h5",
-          ("stoch", "gen", "c"): "stoch_part_gen.h5",
-          ("stoch", "std", "c"): "stoch_part_std.h5",},
-    "B": {("exact", "gen", "l"): "loop_probD8.%TRAJ%_exact_NeV200_Qsq64.h5",
-          ("exact", "std", "l"): "loop_probD8.%TRAJ%_exact_NeV200_Qsq64.h5",
-          ("stoch", "gen", "l"): "loop_probD8.%TRAJ%_stoch_NeV200_Ns0001_step0001_Qsq64.h5",
-          ("stoch", "std", "l"): "loop_probD8.%TRAJ%_stoch_NeV200_Ns0001_step0001_Qsq64.h5",
-          ("stoch", "gen", "s"): "loop_probD4.%TRAJ%_stoch_NeV0_Ns0012_step0001_Qsq64.h5",
-          ("stoch", "std", "s"): "loop_probD4.%TRAJ%_stoch_NeV0_Ns0012_step0001_Qsq64.h5",
-          ("stoch", "gen", "c"): "loop_probD4.%TRAJ%_stoch_NeV0_Ns0012_step0001_Qsq64.h5",
-          ("stoch", "std", "c"): "loop_probD4.%TRAJ%_stoch_NeV0_Ns0012_step0001_Qsq64.h5",},
-}
-
 NSs = {
     "B": {"l": 1, "s": 12,"c": 12},
     "C": {"l": 0, "s": 0, "c": 0},
@@ -122,14 +97,13 @@ def get_spos(fname_twop, traj):
     spos = np.array(list(map(lambda x: re.match(match, x).groups(), spos)), int)
     return spos
 
-def get_loop(fname, traj, max_msq_ins=None, Ns=None, kind="local", conv="C", oneend="std", flav="l"):
+def get_loop(fname, traj, max_msq_ins=None, Ns=None, kind="local", conv="v2", oneend="std", flav="l"):
     """
     Retrieves the loop with open dirac indices
     """
-    T = T_extents[conv]
     kinds = ["local",] ### Add more here as we implement them
     assert kind in kinds, " `kind' should be one of: [{}]".format(", ".join(kinds))
-    if conv in ["C","D"]:
+    if conv == "v2":
         Ns = "" if Ns is None else f"Ns{Ns}"
         with h5py.File(fname, "r") as fp:
             mvec = np.array(fp[f"Conf{traj}/{Ns}/localLoops/mvec"])
@@ -139,7 +113,7 @@ def get_loop(fname, traj, max_msq_ins=None, Ns=None, kind="local", conv="C", one
                 mvec_idx = (mvec**2).sum(axis=1) <= max_msq_ins
             if kind == "local":
                 l = np.array(fp[f"Conf{traj}/{Ns}/localLoops/loop"])
-    if conv == "B":
+    if conv == "v1":
         Ns = "" if Ns is None else "Nstoch_{:04.0f}".format(Ns)
         ncnf = traj.split("_")[0]
         with h5py.File(fname, "r") as fp:
@@ -154,10 +128,10 @@ def get_loop(fname, traj, max_msq_ins=None, Ns=None, kind="local", conv="C", one
                 if oneend == "gen":
                     end = "dOp/loop"                
                 l = np.array(fp[f"conf_{ncnf}/{Ns}/{end}"])
-        l = l.reshape(T, mvec.shape[0], 4, 4, 2).transpose(0, 2, 3, 1, 4)
+        l = l.reshape(-1, mvec.shape[0], 4, 4, 2).transpose(0, 2, 3, 1, 4)
     return mvec[mvec_idx, :], l[...,mvec_idx,0] + I*l[...,mvec_idx,1]
 
-def loop_contract(dname, traj, max_msq_ins=None, parts=["stoch"], conv="C", flav="l", Ns=0):
+def loop_contract(fname, traj, rename=None, max_msq_ins=None, parts=["stoch"], conv="v2", flav="l", Ns=0):
     """
     Contract and return the loop
     - If max_msq_ins is None, return all mvec
@@ -170,10 +144,15 @@ def loop_contract(dname, traj, max_msq_ins=None, parts=["stoch"], conv="C", flav
     gammas = operators["vector"]["gammas"]
     ret = list()
     for i,part in enumerate(parts):
-        fn = loops_names[conv][part, oneend, flav].replace("%TRAJ%", f"{traj}")
+        if rename is None:
+            ren = {x: x for x in ["exact","stoch"]}
+        else:
+            ren = {x.split(":")[0]: x.split(":")[1] for x in rename.split(",")}
+        fn = fname.replace("%part%", ren[part])
+        if conv == "v2":
+            fn = fn.replace("%oe%", oneend)
         N = {"stoch": Ns, "exact": None}[part]
-        fname = f"{dname}/{traj}/{fn}"
-        mvec,l = get_loop(fname, traj, max_msq_ins=max_msq_ins, Ns=N, kind=kind, conv=conv, oneend=oneend, flav=flav)
+        mvec,l = get_loop(fn, traj, max_msq_ins=max_msq_ins, Ns=N, kind=kind, conv=conv, oneend=oneend, flav=flav)
         ### Transpose dirac indices and move insertion momentum vector
         ### index to second-from-left
         l = l.transpose(0, 3, 2, 1)
@@ -182,7 +161,7 @@ def loop_contract(dname, traj, max_msq_ins=None, parts=["stoch"], conv="C", flav
         ret.append(ll)
     return mvec, np.array(ret)
 
-def get_twop(fname, traj, spo, msq_snk=0, projs=["P0"], conv="C"):
+def get_twop(fname, traj, spo, msq_snk=0, projs=["P0"]):
     """
     Return two-point function for a given source position
     - Return shape is [nprojs, 2 (fwd/bwd), nt, nmvec]
@@ -190,11 +169,11 @@ def get_twop(fname, traj, spo, msq_snk=0, projs=["P0"], conv="C"):
     """
     ret = list()
     with h5py.File(fname, "r") as fp:
-        if conv == "C":
-            s = f"sx{spo[0]:02.0f}sy{spo[1]:02.0f}sz{spo[2]:02.0f}st{spo[3]:03.0f}"
-        if conv in ["B","D"]:
-            s = f"sx{spo[0]:02.0f}sy{spo[1]:02.0f}sz{spo[2]:02.0f}st{spo[3]:02.0f}"            
-        top = fp[f"{traj}/{s}"]
+        s0 = f"sx{spo[0]:02.0f}sy{spo[1]:02.0f}sz{spo[2]:02.0f}st{spo[3]:03.0f}"
+        s1 = f"sx{spo[0]:02.0f}sy{spo[1]:02.0f}sz{spo[2]:02.0f}st{spo[3]:02.0f}"            
+        top0 = fp[f"{traj}"].get(f"{s0}")
+        top1 = fp[f"{traj}"].get(f"{s1}")
+        top = top0 if top1 is None else top1
         for i,nucl in enumerate(["nucl1","nucl2"]):
             for j,proj in enumerate(projs):
                 for k,di in enumerate(("fwd","bwd")):
@@ -243,36 +222,43 @@ def get_EM(mvec, thrp):
 
 @click.command()
 @click.argument("two_point_filename")
-@click.argument("loops_dirname")
+@click.argument("loops_filename")
 @click.argument("traj")
 @click.option("-o", "--output", "oname", default="out.h5", help="output filename")
-@click.option("-c", "--convention", "conv", default="C", help="file convention, e.g. `B', `C', or `D'")
+@click.option("-e", "--ensemble", "ens", default="C", help="ensemble, e.g. `B', `C', or `D'")
+@click.option("-c", "--old-convention/--no-old-convention", "conv", default=False, help="whether to expect the `old' storage convention used for the B ensemble")
 @click.option("-i", "--max-msq-ins", default=None, help="max. insertion momentum squared")
 @click.option("-s", "--msq-snk", default=0, help="sink momentum squared")
 @click.option("-d", "--tsinks", default="4,30", help="tsinks, give as `min(tsink),max(tsink)'")
 @click.option("-p", "--parts", default="stoch", help="parts, e.g. `exact,stoch'")
 @click.option("-f", "--flavor", default="l", help="flavor, e.g. `l', `s', or `c'")
+@click.option("-n", "--numb-sources", default=None, help="number of stochastic sources. If not specified, use hard-coded defaults")
+@click.option("-r", "--rename", default=None, help="renaming convention; give e.g.: `exact:exact_NeV200,stoch:stoch_NeV200_Ns0001_step0001'")
 @click.option("-q", "--quiet/--no-quiet", default=False, help="suppress progress bar")
-def main(two_point_filename, loops_dirname, traj, oname, conv, max_msq_ins, msq_snk, tsinks, parts, flavor, quiet):
-    T = T_extents[conv]
-    L = L_extents[conv]
+def main(two_point_filename, loops_filename, traj, oname, ens, conv, max_msq_ins, msq_snk, tsinks, parts, flavor, numb_sources, rename, quiet):
+    T = T_extents[ens]
+    L = L_extents[ens]
     fname_twop = two_point_filename
-    dname_loop = loops_dirname
+    fname_loop = loops_filename
     parts = parts.split(",")
+    conv = "v1" if conv is True else "v2"
     if max_msq_ins is not None:
         max_msq_ins = int(max_msq_ins)
     dts = list(map(int, tsinks.split(",")))
     dts = range(dts[0], dts[1]+1)
     spos = get_spos(fname_twop, traj)
     thrp = defaultdict(np.complex128)
-    Ns = NSs[conv][flavor]
-    mvec_ins,loops = loop_contract(dname_loop, traj, max_msq_ins=max_msq_ins, parts=parts, conv=conv, flav=flavor, Ns=Ns)
+    if numb_sources is None:
+        Ns = NSs[ens][flavor]
+    else:
+        Ns = int(numb_sources)
+    mvec_ins,loops = loop_contract(fname_loop, traj, rename=rename, max_msq_ins=max_msq_ins, parts=parts, conv=conv, flav=flavor, Ns=Ns)
     qx,qy,qz = mvec_ins.T
     spos_iter = spos if quiet else tqdm.tqdm(spos, ncols=72)
     for spo in spos_iter:
         sx,sy,sz,st = spo
         projs = operators["vector"]["projs"]
-        mv_snk,twop = get_twop(fname_twop, traj, spo, msq_snk=msq_snk, projs=projs, conv=conv)
+        mv_snk,twop = get_twop(fname_twop, traj, spo, msq_snk=msq_snk, projs=projs)
         tf = (T + np.arange(T) + st) % T
         tb = (T - np.arange(T) + st) % T
         phase = np.exp(I*(qx*sx + qy*sy + qz*sz)*2.0*np.pi/L)
